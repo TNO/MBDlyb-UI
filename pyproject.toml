@@ -1,0 +1,44 @@
+# Copyright (c) 2023 - 2026 TNO-ESI
+# All rights reserved.
+
+[project]
+name = "MBDlyb-UI"
+version = "0.1.0"
+description = "User interface for the Model-based Diagnostics library for high-tech systems."
+readme = "README.md"
+license = "EPL-2.0"
+requires-python = ">=3.13,<3.14"
+authors = [
+    { name = "TNO-ESI", email = "esi-office@tno.nl" },
+]
+dependencies = [
+    "mbdlyb==0.6.0",
+    "nicegui>=3.0.3",
+    "pandas-stubs~=3.0.5",
+    "pandas[excel]>=2.2.3",
+    "neomodel~=7.0",
+]
+
+[dependency-groups]
+docs = [
+    "sphinx>=7.2",
+    "sphinx-rtd-theme>=2.0",
+    "sphinx-autoapi>=3.0",
+]
+screenshots = [
+    "playwright>=1.40",
+    "neo4j>=5.0",
+]
+
+[project.urls]
+Homepage = "https://esi.tno.nl/research/expertise/diagnostics"
+
+[build-system]
+requires = ["uv_build>=0.12.21,<0.13"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+mbdlyb = { path = "../mbdlyb-base", editable = true }
+
+[project.scripts]
+mbdlyb-ui = "mbdlyb_ui.functional.app:main"

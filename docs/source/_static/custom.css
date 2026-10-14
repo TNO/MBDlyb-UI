@@ -1,0 +1,22 @@
+/* Inline toolbar icons in running text. */
+img.inline-icon {
+	height: 1.6em;
+	vertical-align: middle;
+	margin: 0 0.1em;
+}
+
+/* Screenshots: subtle border so white pages stand out from the background. */
+.rst-content img.screenshot {
+	border: 1px solid #d0d0d0;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.wy-nav-content {
+	max-width: 1100px;
+}
+
+/* Let long table cells wrap instead of forcing horizontal scrolling. */
+.wy-table-responsive table td,
+.wy-table-responsive table th {
+	white-space: normal;
+}

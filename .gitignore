@@ -1,0 +1,7 @@
+.idea/
+.nicegui/
+*.dne
+__pycache__/
+dist/
+docs/build/
+
