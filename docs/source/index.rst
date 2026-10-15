@@ -1,7 +1,7 @@
-MBDlyb-UI user guide
+MBDlyb user guide
 ====================
 
-MBDlyb-UI is the web interface of `MBDlyb <https://github.com/TNO/mbdlyb>`_, a
+`MBDlyb-UI <https://github.com/TNO/mbdlyb-ui>`_ is the web interface of `MBDlyb <https://github.com/TNO/mbdlyb>`_, a
 prototype Python library for *design-driven, model-based diagnostics* developed
 by `TNO-ESI <https://esi.tno.nl/research/expertise/diagnostics/>`_. With the
 interface you build a functional model of a system, enrich it with diagnostic

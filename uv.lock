@@ -789,7 +789,7 @@ wheels = [
 [[package]]
 name = "mbdlyb"
 version = "0.6.0"
-source = { editable = "../mbdlyb-base" }
+source = { editable = "../mbdlyb" }
 dependencies = [
     { name = "capellambse" },
     { name = "more-itertools" },
@@ -850,7 +850,7 @@ screenshots = [
 
 [package.metadata]
 requires-dist = [
-    { name = "mbdlyb", editable = "../mbdlyb-base" },
+    { name = "mbdlyb", editable = "../mbdlyb" },
     { name = "neomodel", specifier = "~=7.0" },
     { name = "nicegui", specifier = ">=3.0.3" },
     { name = "pandas", extras = ["excel"], specifier = ">=2.2.3" },

@@ -38,7 +38,7 @@ requires = ["uv_build>=0.12.21,<0.13"]
 build-backend = "uv_build"
 
 [tool.uv.sources]
-mbdlyb = { path = "../mbdlyb-base", editable = true }
+mbdlyb = { path = "../mbdlyb", editable = true }
 
 [project.scripts]
 mbdlyb-ui = "mbdlyb_ui.functional.app:main"
