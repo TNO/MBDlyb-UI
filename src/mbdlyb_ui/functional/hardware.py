@@ -240,7 +240,7 @@ class HardwareDetailsPage(FunctionalPage):
 			with ui.card():
 				Table('Observed by', self.hardware.observed_by.order_by('name'), [
 					TableColumn('Name', 'name', get_url, 'fqn'),
-					TableColumn('Weight', lambda o: o.observed_self.hardware.relationship(self.hardware).weight)
+					TableColumn('Weight', lambda o: o.observed_hardware.relationship(self.hardware).weight)
 				], self.hardware, [
 						  Button(icon='add', tooltip='Add observable',
 								 handler=f'{base_url}/observedby/new')
@@ -428,8 +428,8 @@ def observes_relation_form(o_relation: ObservesRelation):
 WHERE
     NOT (h)-[:OBSERVED_BY]->(o)
  RETURN o''', resolve_objects=True)
-	options_dict = dict() if o_relation.end_uid is None else {o_relation.end_uid: o_relation.get_end_node().fqn}
-	ui.select({**options_dict, **{sf[0].uid: sf[0].fqn for sf in options}}, label='Observer',
+	options_dict = dict() if o_relation.end_uid is None else {o_relation.end_uid: str(o_relation.get_end_node().fqn)}
+	ui.select({**options_dict, **{sf[0].uid: str(sf[0].fqn) for sf in options}}, label='Observer',
 			  with_input=True).bind_value(o_relation, 'end_uid')
 	ui.number('Weight', min=0., max=1., precision=2, step=.01).bind_value(o_relation, 'weight')
 

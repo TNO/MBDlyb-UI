@@ -9,7 +9,6 @@ import asyncio
 from typing import Union, Tuple, Optional
 
 import pandas as pd
-import plotly.express as px
 from nicegui import app, ui, run
 from nicegui.elements.mixins.value_element import ValueElement
 from nicegui.elements.slider import Slider
@@ -102,6 +101,7 @@ class UIDiagnoserData:
 		self.cluster = await run.io_bound(gdb.GCluster.load_from_db, self._cluster_id)
 		self.diagnoser = await run.io_bound(Diagnoser, self.cluster, reasoner_klass)
 		self.diagnoser.set_entropy_limit(self.entropy_limit)
+		model_type.refresh()
 
 		status.refresh(Status.READY)
 		if event is not None:
@@ -150,7 +150,6 @@ class UIDiagnoserData:
 		self.diagnoser.set_loss_function(self.loss_function)
 		self.diagnostic_tests = await run.io_bound(self.diagnoser.sort_next_diagnostic_tests)
 		diagnostic_tests.refresh()
-		diagnostic_tests_plot.refresh()
 		if event is not None:
 			event.sender.enable()
 		status.refresh(Status.READY)
@@ -211,7 +210,6 @@ class UIDiagnoserData:
 		if refresh_diagnoses:
 			diagnoses.refresh()
 			diagnostic_tests.refresh()
-			diagnostic_tests_plot.refresh()
 		direct_observables.refresh()
 		operating_modes.refresh()
 		evidence.refresh()
@@ -243,10 +241,11 @@ class DiagnoserPage(FunctionalPage):
 	def _show_content(self):
 		"""Render diagnosis filters, evidence inputs, and ranked results."""
 		with ui.row().classes('w-full gap-5 items-center'):
+			model_type(self.data)
 			ui.checkbox('Auto-compute').bind_value(self.data, 'auto_compute')
 			ui.checkbox('Soft evidence').bind_value(self.data, 'soft_evidence').on_value_change(
 				lambda: (diagnostic_tests.refresh(), direct_observables.refresh()))
-			ui.label('Balance: (cost vs entropy)')
+			ui.label('Balance: (cost vs information gain)')
 			slider = ui.slider(min=0.0, max=1.0, step=0.01, value=0.5).bind_value(self.data, 'balance').style(
 				'width: 200px').on_value_change(self.data.compute_tests)
 			ui.label().bind_text_from(slider, 'value', lambda v: f'{v:.2f}')
@@ -264,15 +263,12 @@ class DiagnoserPage(FunctionalPage):
 						lambda x: diagnoses.refresh())
 				diagnoses(self.data)
 			with ui.column().classes(box_classes):
-				dialog = ui.dialog().props('full-width full-height')
-				diagnostic_tests_plot(self.data, dialog)
 				with ui.row().classes('w-full items-center'):
 					ui.label('Diagnostic tests').classes('text-h5')
 					ui.space()
 					ui.input(label='Filter').bind_value(self.data, 'filter_dt').props(
 						'clearable flat dense').on_value_change(
 						lambda x: diagnostic_tests.refresh())
-					ui.button(icon='insert_chart', on_click=dialog.open).props('flat').tooltip('Plot diagnostic tests')
 				diagnostic_tests(self.data)
 		with ui.grid(columns='1fr 1fr').classes('fit items-stretch gap-1'):
 			with ui.column().classes(box_classes):
@@ -413,6 +409,23 @@ def create_evidence_sliders(states: list[str], evidence: dict[str, Union[str, li
 			checkbox.on_value_change(lambda e: _check_on_value_change(e, evidence, fqn, sliders))
 		return [(checkbox, sliders)] if make_optional else [sliders]
 
+@ui.refreshable
+def model_type(data: UIDiagnoserData):
+	"""Render the model type information.
+
+	Args:
+	    data: Inferred hardware health results and diagnosis filters.
+	"""
+	if data.diagnoser is None:
+		icon = 'question_mark'
+		tooltip = 'Model type is not yet known, as the model is still loading.'
+	elif data.diagnoser.is_functionally_deterministic:
+		icon = 'straight'
+		tooltip = 'Model is functionally deterministic. Test entropy on all hardware nodes is computed.'
+	else:
+		icon = 'alt_route'
+		tooltip = f'Functional model is not deterministic. Only top {data.diagnoser.entropy_limit} hardware nodes are considered for information gain computation.'
+	ui.icon(icon, color='primary').classes('text-2xl').tooltip(tooltip)
 
 @ui.refreshable
 def diagnoses(data: UIDiagnoserData):
@@ -516,17 +529,6 @@ def diagnostic_tests(data: UIDiagnoserData):
 	Args:
 	    data: Ranked diagnostic tests and evidence staging state.
 	"""
-	filter_expression = f'.*{data.filter_dt}.*' if data.filter_dt else None
-	f_dt_data = data.diagnostic_tests \
-		if (filter_expression is None or data.diagnostic_tests.size == 0) \
-		else data.diagnostic_tests[
-			data.diagnostic_tests['Diagnostic Test'].map(
-				lambda x: re.search(filter_expression, str(x.fqn), re.IGNORECASE) is not None)]
-
-	if f_dt_data.size == 0:
-		ui.label('No tests to show.').classes('text-grey')
-		return
-
 	async def _save(dt, dt_ev, exp):
 		"""Run the selected diagnostic test with supplied evidence and refresh results.
 
@@ -544,108 +546,31 @@ def diagnostic_tests(data: UIDiagnoserData):
 		if data.auto_compute:
 			await data.compute()
 
-	lc_fqn = str(FQN.longest_common_fqn(*f_dt_data['Diagnostic Test'].map(lambda x: x.fqn)) or '')
+	filter_expression = f'.*{data.filter_dt}.*' if data.filter_dt else None
+	f_dt_data = data.diagnostic_tests \
+		if (filter_expression is None or data.diagnostic_tests.size == 0) \
+		else data.diagnostic_tests[
+			data.diagnostic_tests.index.map(
+				lambda x: re.search(filter_expression, str(x.fqn), re.IGNORECASE) is not None)]
+
+	if f_dt_data.size == 0:
+		ui.label('No tests to show.').classes('text-grey')
+		return
+
+	lc_fqn = str(FQN.longest_common_fqn(*f_dt_data.index.map(lambda x: x.fqn)) or '')
 	dt_ev: dict[DiagnosticTest, dict[str, str]] = dict()
 	with ui.scroll_area().classes('fit'):
-		for _, r in f_dt_data.iterrows():
-			dt: DiagnosticTest = r['Diagnostic Test']
+		for dt, r in f_dt_data.iterrows():
 			dt_ev[dt] = dict()
 			with ui.expansion(re.sub(f'^{lc_fqn}\\.*', '', str(dt.fqn)) or dt.name, caption=f'Cost: {r["Cost"]:.2f}, Information Gain: {r["Information Gain"]:.3f}').classes('w-full') as exp:
 				inputs: list[Union[ValueElement, Tuple[ValueElement, list[ValueElement], Union[ValueElement, list[ValueElement]]]]] = []
-				for test_result in dt.test_results:
+				for test_result in sorted_test_results(dt):
 					if data.soft_evidence:
 						inputs += create_evidence_sliders(test_result.states, dt_ev[dt], str(test_result.fqn), label=test_result.name)
 					else:
 						inputs += create_evidence_select(test_result.name, test_result.states, dt_ev[dt], str(test_result.fqn))
 				btn = ui.button('Save', on_click=lambda t=dt, ev=dt_ev[dt], e=exp: _save(t, ev, e))
 				btn.bind_enabled_from(locals(), 'inputs', backward=_check_evidence_provided)
-
-
-@ui.refreshable
-def diagnostic_tests_plot(data: UIDiagnoserData, dialog: ui.dialog):
-	"""Plot the costs and information gain of diagnostic tests.
-
-	Args:
-	    data: Ranked tests and their entropy and cost values.
-	    dialog: Settings dialog to populate.
-	"""
-	dialog.clear()
-	if data.diagnostic_tests.size == 0:
-		return
-
-	# Update plotly's blue colorscale with transparency
-	blues = px.colors.get_colorscale('blues')
-	for i, color in enumerate(blues):
-		blues[i][1] = re.sub(r'rgb\((\d*),(\d*),(\d*)\)', r'rgba(\1,\2,\3,0.33)', color[1])
-
-	with dialog, ui.card():
-		contour_x, contour_y, contour_z = data.diagnoser.compute_loss_grid()
-		plot_data = {
-			'data': [
-				{
-					'type': 'scatter',
-					'mode': 'markers+text',
-					'name': 'Cost vs Entropy',
-					'x': [round(d, 3) for d in data.diagnostic_tests['Entropy']],
-					'y': [round(d, 2) for d in data.diagnostic_tests['Cost']],
-					'hovertext': [str(dt.fqn) for dt in data.diagnostic_tests['Diagnostic Test']],
-				},
-				{
-					'type': 'contour',
-					'x': contour_x,
-					'y': contour_y,
-					'z': contour_z,
-					'hoverinfo': 'skip',
-					'colorscale': blues,
-					'showscale': False,
-					'autocontour': False,
-					'contours': {
-    					'start': 0,
-    					'end': 1,
-						'size': 0.1,
-						'coloring': 'heatmap',
-					},
-					'zmin': 0,
-					'zmax': 1,
-				}
-			],
-			'layout': {
-				'showlegend': False,
-				'margin': {
-					'pad': 5
-				},
-				'title': 'Cost vs Entropy',
-				'xaxis': {
-					'title': 'Entropy',
-					'autorange': False,
-					'range': [contour_x.min(), contour_x.max()],
-				},
-				'yaxis': {
-					'title': 'Cost',
-					'autorange': False,
-					'range': [contour_y.min(), contour_y.max()],
-				},
-				'zaxis': {
-					'autorange': False,
-					'range': [0.0, 1.0],
-				},
-				'annotations': [
-					{'x': r['Entropy'],
-					 'y': r['Cost'],
-					 'text': r['Diagnostic Test'].name,
-					 'textangle': -45,
-					 'showarrow': False,
-					 'xanchor': 'left',
-					 'yanchor': 'bottom',}
-				for _, r in data.diagnostic_tests.iterrows()],
-			},
-			'config': {
-				'responsive': True
-			}
-		}
-		ui.plotly(plot_data).classes('fit')
-		with ui.row().classes('w-full justify-center'):
-			ui.button('Close', on_click=dialog.close)
 
 
 @ui.refreshable
@@ -841,3 +766,13 @@ def evidence(data: UIDiagnoserData):
 																										  _n=n: _delete_evidence(
 								_d, _n), confirm_color='negative')).classes('text-negative').props(
 							'flat padding="none"')
+
+
+def sorted_test_results(dt: DiagnosticTest) -> list[DiagnosticTestResult]:
+	test_results = sorted(dt.test_results)
+	if len(test_results) > 1:
+		main_test_result_idx = next(
+			(idx for idx, dtr in enumerate(test_results) if dtr.fqn == dt.fqn.with_suffix('Result', '_')), -1)
+		if main_test_result_idx > 0:
+			test_results.insert(0, test_results.pop(main_test_result_idx))
+	return test_results
