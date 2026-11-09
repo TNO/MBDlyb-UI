@@ -3,7 +3,7 @@
 
 [project]
 name = "MBDlyb-UI"
-version = "0.1.0"
+version = "0.1.1"
 description = "User interface for the Model-based Diagnostics library for high-tech systems."
 readme = "README.md"
 license = "EPL-2.0"
@@ -12,7 +12,7 @@ authors = [
     { name = "TNO-ESI", email = "esi-office@tno.nl" },
 ]
 dependencies = [
-    "mbdlyb==0.6.0",
+    "mbdlyb==0.6.1",
     "nicegui>=3.0.3",
     "pandas-stubs~=3.0.5",
     "pandas[excel]>=2.2.3",
